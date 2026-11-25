@@ -1,0 +1,52 @@
+bundle:
+  name: cert_orders
+
+variables:
+  notify_email:
+    description: Adres do powiadomień o błędach
+    default: jaeherys3@gmail.com
+  run_label:
+    description: Etykieta runu widoczna w parametrach
+    default: dev-run
+
+resources:
+  jobs:
+    cert_orders_job:
+      name: cert-orders-job-bundle
+      email_notifications:
+        on_failure:
+          - ${var.notify_email}
+      parameters:
+        - name: run_date
+          default: "{{job.start_time.iso_date}}"
+        - name: label
+          default: ${var.run_label}
+      tasks:
+        - task_key: autoload
+          notebook_task:
+            notebook_path: ./src/job_autoloader.ipynb
+        - task_key: ingest
+          depends_on:
+            - task_key: autoload
+          notebook_task:
+            notebook_path: ./src/job_ingest.ipynb
+        - task_key: report
+          depends_on:
+            - task_key: ingest
+          notebook_task:
+            notebook_path: ./src/job_report.ipynb
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production
+    variables:
+      run_label: prod-run
+    resources:
+      jobs:
+        cert_orders_job:
+          schedule:
+            quartz_cron_expression: "0 0 6 * * ?"
+            timezone_id: Europe/Warsaw
